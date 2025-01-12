@@ -1,4 +1,4 @@
-# p12catg
+# masp2catg
 Categorize virtual inputs from masp copied structures.
 
 # Description
@@ -8,4 +8,4 @@ Analogy to this, we want to en-index via virtual masp copied structures.
 So we input R^(4n), output R^(mn) for argv\[1\] == m groups.
 
 # Stub
-This is stub repository.
+This is a stub repository.
