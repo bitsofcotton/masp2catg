@@ -25,6 +25,25 @@ using std::make_pair;
 
 #include <stdlib.h>
 
+template <typename T> static inline SimpleMatrix<T> swapLQR(const SimpleMatrix<T>& L, const int& i, const int& j) {
+  if(i == j) return (L * L.transpose()).QR();
+  auto Lwork(L);
+  std::swap(Lwork.row(2), Lwork.row(3));
+  return (Lwork * Lwork.transpose()).QR();
+}
+
+template <typename T> static inline SimpleMatrix<T> exchg3(const int& i0, const int& j0, const int& k0) {
+  SimpleMatrix<T> Q(2, 4);
+  Q.O();
+  for(int j = 0; j < Q.cols(); j ++)
+    Q(0, j) = j == i0 ? num_t(int(1)) :
+      (j == k0 ? - num_t(int(1)) : num_t(int(0)) );
+  for(int j = 0; j < Q.cols(); j ++)
+    Q(1, j) = j == j0 ? num_t(int(1)) :
+      (j == k0 ? - num_t(int(1)) : num_t(int(0)) );
+  return Q;
+}
+
 #undef int
 int main(int argc, const char* argv[]) {
 //#define int int64_t
@@ -48,8 +67,7 @@ int main(int argc, const char* argv[]) {
       std::cout << res;
     }
   } else if(argv[1][0] == '+') {
-    SimpleMatrix<num_t> extQ(4, 4);
-    // N.B. masp2catg - [extQ, extQ.transpose() * L] == [O, L].
+    // N.B. masp2catg - [extQ, extQ.transpose() * L] == [I, L].
     //  <=> [[q00 q01 q02 q03] ... [q30 q31 q32 q33]] v == L.row(3)
     //      [[q00 ... q33]] exchg(0, 3) v == L.row(0)
     //      [[q00 ... q33]] exchg(1, 3) v == L.row(1)
@@ -69,61 +87,17 @@ int main(int argc, const char* argv[]) {
     //   => Q0.col(0).dot(extQ.row(2) - extQ.row(3)) == 0.
     //      Q0.col(1).dot(extQ.row(2) - extQ.row(3)) == 0.
     //      Q0.col(2).dot(extQ.row(1) - extQ.row(3)) == 0.
-          auto Lwork(L);
-    const auto Qid((Lwork * Lwork.transpose()).QR());
-    std::swap(Lwork.row(2), Lwork.row(3));
-    const auto Q23((Lwork * Lwork.transpose()).QR());
-    Lwork = L;
-    std::swap(Lwork.row(1), Lwork.row(3));
-    const auto Q13((Lwork * Lwork.transpose()).QR());
-    Lwork = L;
-    std::swap(Lwork.row(0), Lwork.row(3));
-    const auto Q03((Lwork * Lwork.transpose()).QR());
     // (2-3, 2-3, 1-3) : Qid
     // (3-2, 3-2, 1-2) : Q23
     // (2-1, 2-1, 3-1) : Q13
     // (2-0, 2-0, 1-0) : Q03
-    cerr << Qid.rows() << ", " << Qid.cols() << endl;
-    SimpleMatrix<num_t> QQ(Qid.rows() * 4, Qid.cols());
-    SimpleMatrix<num_t> Qwork(Qid.rows(), Qid.cols());
-    Qwork.O();
-    for(int i = 0; i < Qwork.rows() - 1; i ++)
-      for(int j = 0; j < Qwork.cols(); j ++)
-        Qwork(i, j) = j == 2 ? num_t(int(1)) :
-          (j == 3 ? - num_t(int(1)) : num_t(int(0)) );
-      for(int j = 0; j < Qwork.cols(); j ++)
-        Qwork(Qwork.rows() - 1, j) = j == 1 ? num_t(int(1)) :
-          (j == 3 ? - num_t(int(1)) : num_t(int(0)) );
-    QQ.setMatrix(0, 0, Qwork * Qid);
-    Qwork.O();
-    for(int i = 0; i < Qwork.rows() - 1; i ++)
-      for(int j = 0; j < Qwork.cols(); j ++)
-        Qwork(i, j) = j == 3 ? num_t(int(1)) :
-          (j == 2 ? - num_t(int(1)) : num_t(int(0)) );
-      for(int j = 0; j < Qwork.cols(); j ++)
-        Qwork(Qwork.rows() - 1, j) = j == 1 ? num_t(int(1)) :
-          (j == 2 ? - num_t(int(1)) : num_t(int(0)) );
-    QQ.setMatrix(Qid.rows(), 0, Qwork * Q23);
-    Qwork.O();
-    for(int i = 0; i < Qwork.rows() - 1; i ++)
-      for(int j = 0; j < Qwork.cols(); j ++)
-        Qwork(i, j) = j == 2 ? num_t(int(1)) :
-          (j == 1 ? - num_t(int(1)) : num_t(int(0)) );
-      for(int j = 0; j < Qwork.cols(); j ++)
-        Qwork(Qwork.rows() - 1, j) = j == 3 ? num_t(int(1)) :
-          (j == 1 ? - num_t(int(1)) : num_t(int(0)) );
-    QQ.setMatrix(Qid.rows(), 0, Qwork * Q13);
-    Qwork.O();
-    for(int i = 0; i < Qwork.rows() - 1; i ++)
-      for(int j = 0; j < Qwork.cols(); j ++)
-        Qwork(i, j) = j == 2 ? num_t(int(1)) :
-          (j == 0 ? - num_t(int(1)) : num_t(int(0)) );
-      for(int j = 0; j < Qwork.cols(); j ++)
-        Qwork(Qwork.rows() - 1, j) = j == 3 ? num_t(int(1)) :
-          (j == 0 ? - num_t(int(1)) : num_t(int(0)) );
-    QQ.setMatrix(Qid.rows() * 3, 0, Q03);
-    extQ = QQ.transpose().QR();
-    cerr << " *** Non proper one: *** " << extQ << endl;
+    SimpleMatrix<num_t> QQ(2 * 4, 4);
+    QQ.setMatrix(0, 0, exchg3<num_t>(2, 1, 3) * swapLQR<num_t>(L, 0, 0));
+    QQ.setMatrix(2, 0, exchg3<num_t>(3, 1, 2) * swapLQR<num_t>(L, 2, 3));
+    QQ.setMatrix(4, 0, exchg3<num_t>(2, 3, 1) * swapLQR<num_t>(L, 1, 3));
+    QQ.setMatrix(6, 0, exchg3<num_t>(2, 1, 0) * swapLQR<num_t>(L, 0, 3));
+    const auto extQ((QQ.transpose() * QQ).QR());
+    cerr << " *** Might non proper one: *** " << extQ << endl;
     for(int i = 2; i < argc; i ++) {
       vector<SimpleMatrix<num_t> > work;
       if(! loadp2or3<num_t>(work, argv[i])) continue;
