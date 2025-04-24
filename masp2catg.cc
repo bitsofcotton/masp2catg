@@ -54,6 +54,36 @@ template <typename T> static inline SimpleVector<T> diag(const SimpleMatrix<T>& 
   return res;
 }
 
+template <typename T> static inline SimpleMatrix<T> pullQ(const SimpleMatrix<T>& L) {
+  // N.B. masp2catg - [extQ, extQ.transpose() * L] == [I, L].
+  //  <=> [[q00 q01 q02 q03] ... [q30 q31 q32 q33]] v == L.row(3)
+  //      [[q00 ... q33]] exchg(0, 3) v == L.row(0)
+  //      [[q00 ... q33]] exchg(1, 3) v == L.row(1)
+  //      [[q00 ... q33]] exchg(2, 3) v == L.row(2)
+  //      ..
+  //  <=> [exchg(id)v, exchg(0, 3)v, exchg(1, 3)v, exchg(2, 3)v] ==
+  //      extQ.transpose() * L
+  //       ...
+  //  <=> v0 = L.transpose() extQ.row(0) == L.transpose() extQ.row(3)
+  //      v1 = L.transpose() extQ.row(1) == L.transpose() extQ.row(3)
+  //      v2 = L.transpose() extQ.row(2) == L.transpose() extQ.row(3)
+  //      ...
+  //  <=> L.transpose() (extQ.row(k) - extQ.row(3)) == 0.
+  //  <=> (R0.transpose() * Q0.transpose()) orthogonal to
+  //        (extQ.row(k) - extQ.row(3))
+  //   => Q0.transpose().dot(extQ.row(k) - extQ.row(3)) == R0.upper(4, 4).
+  //   => Q0.col(0).dot(extQ.row(2) - extQ.row(3)) == 0.
+  //      Q0.col(1).dot(extQ.row(2) - extQ.row(3)) == 0.
+  //      Q0.col(2).dot(extQ.row(1) - extQ.row(3)) == 0.
+  SimpleMatrix<num_t> QQ(4, 4);
+  const auto ex3(exchg3<num_t>(2, 1, 3));
+  QQ.row(0) = diag<num_t>(swapM<num_t>(ex3 * swapM<num_t>(L, 3, 3).QR(), 3, 3));
+  QQ.row(1) = diag<num_t>(swapM<num_t>(ex3 * swapM<num_t>(L, 2, 3).QR(), 2, 3));
+  QQ.row(2) = diag<num_t>(swapM<num_t>(ex3 * swapM<num_t>(L, 1, 3).QR(), 1, 3));
+  QQ.row(3) = diag<num_t>(swapM<num_t>(ex3 * swapM<num_t>(L, 0, 3).QR(), 0, 3));
+  return QQ.QR();
+}
+
 #undef int
 int main(int argc, const char* argv[]) {
 //#define int int64_t
@@ -76,33 +106,7 @@ int main(int argc, const char* argv[]) {
       std::cout << res;
     }
   } else if(argv[1][0] == '+') {
-    // N.B. masp2catg - [extQ, extQ.transpose() * L] == [I, L].
-    //  <=> [[q00 q01 q02 q03] ... [q30 q31 q32 q33]] v == L.row(3)
-    //      [[q00 ... q33]] exchg(0, 3) v == L.row(0)
-    //      [[q00 ... q33]] exchg(1, 3) v == L.row(1)
-    //      [[q00 ... q33]] exchg(2, 3) v == L.row(2)
-    //      ..
-    //  <=> [exchg(id)v, exchg(0, 3)v, exchg(1, 3)v, exchg(2, 3)v] ==
-    //      extQ.transpose() * L
-   //       ...
-    //  <=> v0 = L.transpose() extQ.row(0) == L.transpose() extQ.row(3)
-    //      v1 = L.transpose() extQ.row(1) == L.transpose() extQ.row(3)
-    //      v2 = L.transpose() extQ.row(2) == L.transpose() extQ.row(3)
-    //      ...
-    //  <=> L.transpose() (extQ.row(k) - extQ.row(3)) == 0.
-    //  <=> (R0.transpose() * Q0.transpose()) orthogonal to
-    //        (extQ.row(k) - extQ.row(3))
-    //   => Q0.transpose().dot(extQ.row(k) - extQ.row(3)) == R0.upper(4, 4).
-    //   => Q0.col(0).dot(extQ.row(2) - extQ.row(3)) == 0.
-    //      Q0.col(1).dot(extQ.row(2) - extQ.row(3)) == 0.
-    //      Q0.col(2).dot(extQ.row(1) - extQ.row(3)) == 0.
-    SimpleMatrix<num_t> QQ(4, 4);
-    const auto ex3(exchg3<num_t>(2, 1, 3));
-    QQ.row(0) = diag<num_t>(swapM<num_t>(ex3 * swapM<num_t>(L, 3, 3).QR(), 3, 3));
-    QQ.row(1) = diag<num_t>(swapM<num_t>(ex3 * swapM<num_t>(L, 2, 3).QR(), 2, 3));
-    QQ.row(2) = diag<num_t>(swapM<num_t>(ex3 * swapM<num_t>(L, 1, 3).QR(), 1, 3));
-    QQ.row(3) = diag<num_t>(swapM<num_t>(ex3 * swapM<num_t>(L, 0, 3).QR(), 0, 3));
-    const auto extQ(QQ.QR());
+    const auto extQ(pullQ<num_t>(L));
     cerr << " *** Transpose might not proper: *** " << extQ << endl;
     for(int i = 2; i < argc; i ++) {
       vector<SimpleMatrix<num_t> > work;
@@ -122,6 +126,40 @@ int main(int argc, const char* argv[]) {
       if(! savep2or3<num_t>((std::string(argv[i]) + std::string("-m2c4t.pgm")).c_str(), out) )
         cerr << "failed to save." << endl;
     }
+  } else if(argv[1][0] == 't') {
+    const auto extQ(pullQ<num_t>(L));
+    cerr << " *** Transpose might not proper: *** " << extQ << endl;
+    for(int i0 = 2; i0 < argc; i0 ++) {
+      vector<SimpleMatrix<num_t> > work;
+      if(! loadp2or3<num_t>(work, argv[i0])) continue;
+      SimpleVector<num_t> in(work.size() * work[0].rows() * work[0].cols());
+      in.O();
+      for(int j = 0; j < work.size(); j ++)
+        for(int k = 0; k < work[j].rows(); k ++)
+          in.setVector(j * work[0].rows() * work[0].cols() +
+            k * work[0].cols(), work[j].row(k));
+      SimpleVector<num_t> seed(4);
+      for(int i = 0; i < 16; i ++) {
+        for(int j = 0; j < seed.size(); j ++)
+          seed[j] = i & (j ? 1 << j : 1) ? num_t(int(1)) : num_t(int(0));
+        const auto res( revertProgramInvariant<num_t>(make_pair(extQ * seed, num_t(int(1)) ) ) );
+        const auto rest(revertProgramInvariant<num_t>(make_pair(extQ.transpose() * seed, num_t(int(1)) ) ) );
+        vector<SimpleMatrix<num_t> > lwork;
+        vector<SimpleMatrix<num_t> > lworkt;
+        lwork.resize(work.size());
+        lworkt.resize(work.size());
+        for(int j = 0; j < work.size(); j ++) {
+          lwork[j].resize(1, 4);
+          lworkt[j].resize(1, 4);
+          lwork[j].row(0) = res;
+          lworkt[j].row(0) = rest;
+        }
+        if(! savep2or3<num_t>((std::string(argv[i0]) + std::string("-transient-") + std::to_string(i) + std::string(".ppm")).c_str(), lwork) )
+          cerr << "failed to save." << endl;
+        if(! savep2or3<num_t>((std::string(argv[i0]) + std::string("-ttransient-") + std::to_string(i) + std::string(".ppm")).c_str(), lworkt) )
+          cerr << "failed to save." << endl;
+      }
+    }
   } else goto usage;
   return 0;
  usage:
@@ -129,7 +167,9 @@ int main(int argc, const char* argv[]) {
   cerr << "# strip down masp result:" << std::endl;
   cerr << argv[0] << " - < ..." << std::endl;
   cerr << "# add to original stream:" << std::endl;
-  cerr << argv[0] << " + < ..." << std::endl;
+  cerr << argv[0] << " + <input0.ppm> ... < ..." << std::endl;
+  cerr << "# transient:" << std::endl;
+  cerr << argv[0] << " t <input0.ppm> ... < ..." << std::endl;
   return - 1;
 }
 
