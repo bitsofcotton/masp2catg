@@ -25,23 +25,33 @@ using std::make_pair;
 
 #include <stdlib.h>
 
-template <typename T> static inline SimpleMatrix<T> swapLQR(const SimpleMatrix<T>& L, const int& i, const int& j) {
-  if(i == j) return (L * L.transpose()).QR();
-  auto Lwork(L);
-  std::swap(Lwork.row(2), Lwork.row(3));
-  return (Lwork * Lwork.transpose()).QR();
+template <typename T> static inline SimpleMatrix<T> swapM(const SimpleMatrix<T>& m, const int& i, const int& j) {
+  auto res(m);
+  if(i != j) std::swap(res.row(i), res.row(j));
+  return res;
 }
 
 template <typename T> static inline SimpleMatrix<T> exchg3(const int& i0, const int& j0, const int& k0) {
-  SimpleMatrix<T> Q(2, 4);
+  SimpleMatrix<T> Q(4, 4);
   Q.O();
+  for(int i = 0; i < 2; i ++)
+    for(int j = 0; j < Q.cols(); j ++)
+      Q(i, j) = j == i0 ? num_t(int(1)) :
+        (j == k0 ? - num_t(int(1)) : num_t(int(0)) );
   for(int j = 0; j < Q.cols(); j ++)
-    Q(0, j) = j == i0 ? num_t(int(1)) :
+    Q(2, j) = j == j0 ? num_t(int(1)) :
       (j == k0 ? - num_t(int(1)) : num_t(int(0)) );
   for(int j = 0; j < Q.cols(); j ++)
-    Q(1, j) = j == j0 ? num_t(int(1)) :
-      (j == k0 ? - num_t(int(1)) : num_t(int(0)) );
+    Q(3, j) = num_t(int(0));
   return Q;
+}
+
+template <typename T> static inline SimpleVector<T> diag(const SimpleMatrix<T>& m) {
+  assert(m.rows() == m.cols());
+  SimpleVector<T> res(m.rows());
+  for(int i = 0; i < res.size(); i ++)
+    res[i] = m(i, i);
+  return res;
 }
 
 #undef int
@@ -49,13 +59,12 @@ int main(int argc, const char* argv[]) {
 //#define int int64_t
 #define int int32_t
   SimpleMatrix<num_t> L;
-  SimpleMatrix<num_t> res;
   if(argc < 2) goto usage;
   std::cin >> L;
   if(argv[1][0] == '-') {
     L = L.transpose();
     for(int i0 = 0; i0 < L.rows() / L.cols() - 1; i0 ++) {
-      res.resize(L.cols(), L.rows());
+      SimpleMatrix<num_t> res(L.cols(), L.rows());
       res.O();
       for(int i = 0; i < L.cols(); i ++) {
         auto workL(L);
@@ -87,17 +96,14 @@ int main(int argc, const char* argv[]) {
     //   => Q0.col(0).dot(extQ.row(2) - extQ.row(3)) == 0.
     //      Q0.col(1).dot(extQ.row(2) - extQ.row(3)) == 0.
     //      Q0.col(2).dot(extQ.row(1) - extQ.row(3)) == 0.
-    // (2-3, 2-3, 1-3) : Qid
-    // (3-2, 3-2, 1-2) : Q23
-    // (2-1, 2-1, 3-1) : Q13
-    // (2-0, 2-0, 1-0) : Q03
-    SimpleMatrix<num_t> QQ(2 * 4, 4);
-    QQ.setMatrix(0, 0, exchg3<num_t>(2, 1, 3) * swapLQR<num_t>(L, 0, 0));
-    QQ.setMatrix(2, 0, exchg3<num_t>(3, 1, 2) * swapLQR<num_t>(L, 2, 3));
-    QQ.setMatrix(4, 0, exchg3<num_t>(2, 3, 1) * swapLQR<num_t>(L, 1, 3));
-    QQ.setMatrix(6, 0, exchg3<num_t>(2, 1, 0) * swapLQR<num_t>(L, 0, 3));
-    const auto extQ((QQ.transpose() * QQ).QR());
-    cerr << " *** Might non proper one: *** " << extQ << endl;
+    SimpleMatrix<num_t> QQ(4, 4);
+    const auto ex3(exchg3<num_t>(2, 1, 3));
+    QQ.row(0) = diag<num_t>(swapM<num_t>(ex3 * swapM<num_t>(L, 3, 3).QR(), 3, 3));
+    QQ.row(1) = diag<num_t>(swapM<num_t>(ex3 * swapM<num_t>(L, 2, 3).QR(), 2, 3));
+    QQ.row(2) = diag<num_t>(swapM<num_t>(ex3 * swapM<num_t>(L, 1, 3).QR(), 1, 3));
+    QQ.row(3) = diag<num_t>(swapM<num_t>(ex3 * swapM<num_t>(L, 0, 3).QR(), 0, 3));
+    const auto extQ(QQ.QR());
+    cerr << " *** Transpose might not proper: *** " << extQ << endl;
     for(int i = 2; i < argc; i ++) {
       vector<SimpleMatrix<num_t> > work;
       if(! loadp2or3<num_t>(work, argv[i])) continue;
@@ -109,8 +115,11 @@ int main(int argc, const char* argv[]) {
             k * work[0].cols(), work[j].row(k));
       vector<SimpleMatrix<num_t> > out;
       out.resize(1, SimpleMatrix<num_t>(1, 4));
-      out[0].row(0) = (- extQ.transpose() * (L * makeProgramInvariant<num_t>(in).first) );
+      out[0].row(0) = revertProgramInvariant<num_t>(make_pair(- extQ.transpose() * (L * makeProgramInvariant<num_t>(in).first), num_t(int(1)) ) );
       if(! savep2or3<num_t>((std::string(argv[i]) + std::string("-m2c4.pgm")).c_str(), out) )
+        cerr << "failed to save." << endl;
+      out[0].row(0) = revertProgramInvariant<num_t>(make_pair(- extQ * (L * makeProgramInvariant<num_t>(in).first), num_t(int(1)) ) );
+      if(! savep2or3<num_t>((std::string(argv[i]) + std::string("-m2c4t.pgm")).c_str(), out) )
         cerr << "failed to save." << endl;
     }
   } else goto usage;
