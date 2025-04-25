@@ -139,9 +139,9 @@ int main(int argc, const char* argv[]) {
       lworkt.resize(1, SimpleMatrix<num_t>(1, 4).O());
       lwork[0].row(0)  = revertProgramInvariant<num_t>(make_pair(extQ * seed, num_t(int(1)) ) );
       lworkt[0].row(0) = revertProgramInvariant<num_t>(make_pair(extQ.transpose() * seed, num_t(int(1)) ) );
-      if(! savep2or3<num_t>((std::string("transient-") + std::to_string(i) + std::string(".ppm")).c_str(), lwork) )
+      if(! savep2or3<num_t>((std::string("transient-") + std::to_string(i) + std::string(".pgm")).c_str(), lwork) )
         cerr << "failed to save." << endl;
-      if(! savep2or3<num_t>((std::string("ttransient-") + std::to_string(i) + std::string(".ppm")).c_str(), lworkt) )
+      if(! savep2or3<num_t>((std::string("ttransient-") + std::to_string(i) + std::string(".pgm")).c_str(), lworkt) )
         cerr << "failed to save." << endl;
     }
   } else goto usage;
@@ -153,7 +153,7 @@ int main(int argc, const char* argv[]) {
   cerr << "# add to original stream:" << std::endl;
   cerr << argv[0] << " + <input0.ppm> ... < ..." << std::endl;
   cerr << "# transient:" << std::endl;
-  cerr << argv[0] << " t <input0.ppm> ... < ..." << std::endl;
+  cerr << argv[0] << " t < ..." << std::endl;
   return - 1;
 }
 

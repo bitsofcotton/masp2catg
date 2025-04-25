@@ -4,7 +4,7 @@ Attaches dimensions actually used for masp generated matrices.
 # Usage
     ./masp2catg - < wgL.txt
     ./masp2catg + <input0.ppm> ... < wgL.txt
-    ./masp2catg t <input0.ppm> ... < wgL.txt
+    ./masp2catg t < wgL.txt
 
 # Tips on what we actually do in this repository
 Instead of implementing bitsofcotton/specific, we reduce and add extra dimensions by doing QR decompositions with some row exchanges.
