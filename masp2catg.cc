@@ -129,36 +129,20 @@ int main(int argc, const char* argv[]) {
   } else if(argv[1][0] == 't') {
     const auto extQ(pullQ<num_t>(L));
     cerr << " *** Transpose might not proper: *** " << extQ << endl;
-    for(int i0 = 2; i0 < argc; i0 ++) {
-      vector<SimpleMatrix<num_t> > work;
-      if(! loadp2or3<num_t>(work, argv[i0])) continue;
-      SimpleVector<num_t> in(work.size() * work[0].rows() * work[0].cols());
-      in.O();
-      for(int j = 0; j < work.size(); j ++)
-        for(int k = 0; k < work[j].rows(); k ++)
-          in.setVector(j * work[0].rows() * work[0].cols() +
-            k * work[0].cols(), work[j].row(k));
-      SimpleVector<num_t> seed(4);
-      for(int i = 0; i < 16; i ++) {
-        for(int j = 0; j < seed.size(); j ++)
-          seed[j] = i & (j ? 1 << j : 1) ? num_t(int(1)) : num_t(int(0));
-        const auto res( revertProgramInvariant<num_t>(make_pair(extQ * seed, num_t(int(1)) ) ) );
-        const auto rest(revertProgramInvariant<num_t>(make_pair(extQ.transpose() * seed, num_t(int(1)) ) ) );
-        vector<SimpleMatrix<num_t> > lwork;
-        vector<SimpleMatrix<num_t> > lworkt;
-        lwork.resize(work.size());
-        lworkt.resize(work.size());
-        for(int j = 0; j < work.size(); j ++) {
-          lwork[j].resize(1, 4);
-          lworkt[j].resize(1, 4);
-          lwork[j].row(0) = res;
-          lworkt[j].row(0) = rest;
-        }
-        if(! savep2or3<num_t>((std::string(argv[i0]) + std::string("-transient-") + std::to_string(i) + std::string(".ppm")).c_str(), lwork) )
-          cerr << "failed to save." << endl;
-        if(! savep2or3<num_t>((std::string(argv[i0]) + std::string("-ttransient-") + std::to_string(i) + std::string(".ppm")).c_str(), lworkt) )
-          cerr << "failed to save." << endl;
-      }
+    SimpleVector<num_t> seed(4);
+    for(int i = 0; i < 16; i ++) {
+      for(int j = 0; j < seed.size(); j ++)
+        seed[j] = i & (j ? 1 << j : 1) ? num_t(int(1)) : num_t(int(0));
+      vector<SimpleMatrix<num_t> > lwork;
+      vector<SimpleMatrix<num_t> > lworkt;
+      lwork.resize(1, SimpleMatrix<num_t>(1, 4).O());
+      lworkt.resize(1, SimpleMatrix<num_t>(1, 4).O());
+      lwork[0].row(0)  = revertProgramInvariant<num_t>(make_pair(extQ * seed, num_t(int(1)) ) );
+      lworkt[0].row(0) = revertProgramInvariant<num_t>(make_pair(extQ.transpose() * seed, num_t(int(1)) ) );
+      if(! savep2or3<num_t>((std::string("transient-") + std::to_string(i) + std::string(".ppm")).c_str(), lwork) )
+        cerr << "failed to save." << endl;
+      if(! savep2or3<num_t>((std::string("ttransient-") + std::to_string(i) + std::string(".ppm")).c_str(), lworkt) )
+        cerr << "failed to save." << endl;
     }
   } else goto usage;
   return 0;
