@@ -75,13 +75,15 @@ template <typename T> static inline SimpleMatrix<T> pullQ(const SimpleMatrix<T>&
   //   => Q0.col(0).dot(extQ.row(2) - extQ.row(3)) == 0.
   //      Q0.col(1).dot(extQ.row(2) - extQ.row(3)) == 0.
   //      Q0.col(2).dot(extQ.row(1) - extQ.row(3)) == 0.
+  //  ... first to L=QR, then extQ : Q.transpose() * extQ cond,
+  //      Q.transpose() * extQ.transpose() result.
   SimpleMatrix<num_t> QQ(4, 4);
   const auto ex3(exchg3<num_t>(2, 1, 3));
   QQ.row(0) = diag<num_t>(swapM<num_t>(ex3 * swapM<num_t>(L, 3, 3).QR(), 3, 3));
   QQ.row(1) = diag<num_t>(swapM<num_t>(ex3 * swapM<num_t>(L, 2, 3).QR(), 2, 3));
   QQ.row(2) = diag<num_t>(swapM<num_t>(ex3 * swapM<num_t>(L, 1, 3).QR(), 1, 3));
   QQ.row(3) = diag<num_t>(swapM<num_t>(ex3 * swapM<num_t>(L, 0, 3).QR(), 0, 3));
-  return QQ.QR();
+  return (QQ.QR() * L.QR()).transpose();
 }
 
 #undef int
@@ -122,26 +124,19 @@ int main(int argc, const char* argv[]) {
       out[0].row(0) = revertProgramInvariant<num_t>(make_pair(- extQ.transpose() * (L * makeProgramInvariant<num_t>(in).first), num_t(int(1)) ) );
       if(! savep2or3<num_t>((std::string(argv[i]) + std::string("-m2c4.pgm")).c_str(), out) )
         cerr << "failed to save." << endl;
-      out[0].row(0) = revertProgramInvariant<num_t>(make_pair(- extQ * (L * makeProgramInvariant<num_t>(in).first), num_t(int(1)) ) );
-      if(! savep2or3<num_t>((std::string(argv[i]) + std::string("-m2c4t.pgm")).c_str(), out) )
-        cerr << "failed to save." << endl;
     }
   } else if(argv[1][0] == 't') {
     const auto extQ(pullQ<num_t>(L));
+    const auto LQ(L.QR());
     cerr << " *** Transpose might not proper: *** " << extQ << endl;
     SimpleVector<num_t> seed(4);
     for(int i = 0; i < 16; i ++) {
       for(int j = 0; j < seed.size(); j ++)
         seed[j] = i & (j ? 1 << j : 1) ? num_t(int(1)) : num_t(int(0));
       vector<SimpleMatrix<num_t> > lwork;
-      vector<SimpleMatrix<num_t> > lworkt;
       lwork.resize(1, SimpleMatrix<num_t>(1, 4).O());
-      lworkt.resize(1, SimpleMatrix<num_t>(1, 4).O());
-      lwork[0].row(0)  = revertProgramInvariant<num_t>(make_pair(extQ * seed, num_t(int(1)) ) );
-      lworkt[0].row(0) = revertProgramInvariant<num_t>(make_pair(extQ.transpose() * seed, num_t(int(1)) ) );
+      lwork[0].row(0) = revertProgramInvariant<num_t>(make_pair(LQ.transpose() * extQ.transpose() * LQ.transpose() * seed, num_t(int(1)) ) );
       if(! savep2or3<num_t>((std::string("transient-") + std::to_string(i) + std::string(".pgm")).c_str(), lwork) )
-        cerr << "failed to save." << endl;
-      if(! savep2or3<num_t>((std::string("ttransient-") + std::to_string(i) + std::string(".pgm")).c_str(), lworkt) )
         cerr << "failed to save." << endl;
     }
   } else goto usage;
@@ -150,9 +145,9 @@ int main(int argc, const char* argv[]) {
   cerr << "Usage:" << std::endl;
   cerr << "# strip down masp result:" << std::endl;
   cerr << argv[0] << " - < ..." << std::endl;
-  cerr << "# add to original stream:" << std::endl;
+  cerr << "# add to original stream, different vector meaning:" << std::endl;
   cerr << argv[0] << " + <input0.ppm> ... < ..." << std::endl;
-  cerr << "# transient:" << std::endl;
+  cerr << "# transient on meaning also returns same meaning:" << std::endl;
   cerr << argv[0] << " t < ..." << std::endl;
   return - 1;
 }
